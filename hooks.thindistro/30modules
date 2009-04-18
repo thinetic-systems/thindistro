@@ -1,0 +1,57 @@
+# hook for create modules
+
+if [ ! -e "$MODDIR/20_thinblue_$VERSION.squashfs" ]; then
+  cat << EOF >$MODPKGS/20_thinblue.sh
+#!/bin/sh
+# install thinblue
+if [ "\$1" = "chroot" ]; then
+  echo " * 20_thinblue.sh CHROOT * "
+  dpkg -i /python-support*deb
+  dpkg -i /python-webpy*deb
+  dpkg -i /thinblue*deb
+  apt-get -f install -y
+  rm -f /*deb
+fi
+
+if [ "\$1" = "absolute" ]; then
+  echo " * 20_thinblue.sh ABSOLUTE * "
+  # FIXME do this with a local mirror
+  cp /home/mario/thinetic/git/thinblue_*.deb $MODRW/
+  cp /mirror/debian/pool/main/w/webpy/python-webpy_0.310-1_all.deb $MODRW/
+  cp /mirror/debian/pool/main/p/python-support/python-support_1.0.2_all.deb $MODRW/
+fi
+
+EOF
+  chmod +x $MODPKGS/20_thinblue.sh
+  create_module "20_thinblue"   "bluetooth bluez-utils python-bluez python-lightblue python-pysqlite2 sqlite3 bluez-utils obexftp python-apsw python-webpy" "$MODPKGS/20_thinblue.sh"
+  rm -f $MODPKGS/20_thinblue.sh
+fi
+
+if [ ! -e "$MODDIR/30_web_$VERSION.squashfs" ]; then
+  create_module "30_web"   "apache2 libapache2-mod-php5 php5" ""
+fi
+
+if [ ! -e "$MODDIR/40_thinfilter_$VERSION.squashfs" ]; then
+  cat << EOM > $MODPKGS/40_thinfilter.sh
+#!/bin/sh
+# configure dnsmasq
+
+EOM
+  chmod +x $MODPKGS/40_thinfilter.sh
+  create_module "40_thinfilter"   "squid3 dansguardian sarg dnsmasq" "$MODPKGS/40_thinfilter.sh"
+  rm -f $MODPKGS/40_thinfilter.sh
+fi
+
+
+# EXAMPLE MODULES
+#if [ ! -e "$MODDIR/30_iceweasel_$VERSION.squashfs" ]; then
+#  create_module "30_iceweasel" "iceweasel iceweasel-l10n-es-es iceweasel-gnome-support flashplayer-mozilla" ""
+#fi
+
+
+#if [ ! -e "$MODDIR/40_mplayer_$VERSION.squashfs" ]; then
+#  create_module "40_mplayer"   "mplayer w32codecs libdvdcss2 libdvdread3" ""
+#fi
+
+
+

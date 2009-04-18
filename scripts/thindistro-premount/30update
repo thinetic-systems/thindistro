@@ -1,0 +1,35 @@
+#!/bin/sh
+# Update CF if new module files found
+
+
+. /scripts/functions
+# break in live-tmpfs
+maybe_break update
+
+if [ ! -d /mnt/dev/mods ]; then
+  echo "UPDATE: no mods dir, exit now" >> /tmp/initramfs.debug
+  exit 0
+fi
+
+if [ ! -w /mnt/dev/mods ]; then
+  echo "UPDATE: mods dir not writable, exit now" >> /tmp/initramfs.debug
+  exit 0
+fi
+
+
+NEWMODS=$(find /mnt/dev/mods -name "*.squashfs.new")
+if [ "$NEMODS" = "" ]; then
+  echo "UPDATE: no updates, exit now" >> /tmp/initramfs.debug
+  exit 0
+fi
+
+for _mod in $NEWMODS; do
+
+    mod=$(echo $_mod| sed -e 's/\.new//g')
+    echo "UPDATE: updating mod: $mod" >> /tmp/initramfs.debug
+    mv "${_mod}" "${mod}" >> /tmp/initramfs.debug 2>&1
+    sync
+
+done
+
+exit 0

@@ -1,0 +1,14 @@
+Source: gensincro
+Section: thinetic
+Priority: optional
+Maintainer: Mario Izquierdo (mariodebian) <mariodebian@gmail.com>
+Build-Depends: debhelper (>= 4.0.0), cdbs
+Standards-Version: 3.7.3
+
+Package: gensincro
+Architecture: all
+Depends: mkisofs, squashfs-tools, debootstrap, syslinux, mbr, tree, parted
+Description: Tool to generate Distro live DVD, CD and USB
+ Contains:
+  * gensincro
+

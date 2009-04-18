@@ -1,0 +1,131 @@
+#!/bin/sh
+
+if [ "$(whoami)" != "root" ]; then
+   echo "You must be root to exec this script"
+   exit 1
+fi
+
+. /etc/thindistro/thindistro.conf
+
+if [ $(pwd) != "$META_MASTER/meta" ]; then
+   echo "Not in dir $META_MASTER/meta, go there and re-run command."
+   exit 1
+fi
+
+if [ ! -f META.squashfs ] ; then
+    echo "META.squashfs not found, build first with gensincro"
+    exit 1
+fi
+
+
+is_mounted() {
+tmpvar=$(grep -c "$1" /proc/mounts)
+if [ $tmpvar -gt 0 ]; then
+  echo "$1 is mounted" 2>&1
+  return 0
+else
+  echo "$1 is not mounted" 2>&1
+  return 1
+fi
+}
+
+mount_squashfs() {
+# $1 file
+# $2 mount point
+is_mounted "$META_MASTER/META/$2" || mount -o loop -t squashfs $1 $2
+}
+
+mount_unionfs() {
+# $1 mount union
+is_mounted "$META_MASTER/META/$1" || mount -t unionfs -o dirs=tmp2/=rw:tmp1/=ro unionfs $1
+}
+
+mount_all() {
+ mkdir -p tmp1 tmp2 meta
+ mount_squashfs META.squashfs tmp1/
+ mount_unionfs meta/
+ #mount -o loop -t squashfs META.squashfs tmp1/
+ #mount -t unionfs -o dirs=tmp2=rw:tmp1/=ro unionfs meta/
+}
+
+exit_squashfs() {
+ echo "Preparing for exit..."
+ chroot meta/ apt-get clean
+ umount -l meta/dev
+ umount -l meta/proc
+ umount -l meta/sys
+}
+
+enter_squashfs() {
+ echo "Preparing for enter..."
+ mount -o bind /dev meta/dev
+ mount -o bind /proc meta/proc
+ mount -o bind /sys meta/sys
+ chroot meta/
+}
+
+rebuild_squashfs() {
+  echo "Rebuilding squashfs..."
+  rm -f META-new.squashfs
+  mksquashfs meta/ META-new.squashfs
+  chmod 644 META-new.squashfs
+  echo "DONE"
+  echo ""
+  echo "    REMEMBER to rename META-new.squashfs to META.squashfs"
+  echo ""
+}
+
+umount_all() {
+ umount -l meta/
+ umount -l tmp1/
+}
+
+clean_all() {
+  rm -rf tmp1
+  rm -rf tmp2
+  rm -rf meta
+}
+
+usage() {
+  echo "Usage:"
+  echo 
+  echo "    --mount   (mount squashfs and unionfs)"
+  echo "    --enter   (bind /dev /proc and /sys and chroot into image)"
+  echo "    --exit    (unbind /dev /proc and /sys )"
+  echo "    --rebuild (rebuild META.squashfs into META-new.squashfs)"
+  echo "    --umount  (umount umionfs and squashfs)"
+  echo "    --clean   (clean tmp dirs)"
+
+  exit 1
+}
+
+if [ $# -lt 1 ]; then
+   usage
+fi
+
+for opt in $@; do
+  case $opt in
+      --mount)
+             mount_all      
+      ;;
+      --enter)
+             enter_squashfs
+      ;;
+      --exit)
+             exit_squashfs 
+      ;;
+      --rebuild)
+             rebuild_squashfs 
+      ;;
+      --umount)
+             umount_all
+      ;;
+      --clean)
+             clean_all
+      ;;
+      *)
+             usage
+      ;;
+   esac
+done
+

@@ -1,0 +1,20 @@
+Source: thindistro
+Section: admin
+Priority: optional
+Maintainer: Mario Izquierdo (mariodebian) <mariodebian@gmail.com>
+Build-Depends: debhelper (>= 7.0.0)
+Standards-Version: 3.8.1
+
+Package: thindistro
+Architecture: all
+Depends: initramfs-tools (>= 0.40), genisoimage, squashfs-tools, debootstrap, syslinux, mbr
+Description: tools for generating an livecd initramfs
+ This package contains tools to create and boot an initramfs for prepackaged
+ 2.6 Linux kernel. The initramfs is an cpio archive. At boot time, the kernel
+ unpacks that archive into ram, mounts and uses it as initial root file system.
+ From there on the mounting of the real root file system occurs in user space.
+ klibc handles the boot-time networking setup. Supports nfs root system.
+ Any boot loader with initrd support is able to load an initramfs archive.
+ .
+ Livecd and usb boot support for thindistro from metadistros project.
+

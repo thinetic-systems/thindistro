@@ -1,0 +1,55 @@
+#!/bin/sh
+# 
+
+
+quiet=n
+
+. /conf/initramfs.conf
+
+
+
+cat <<EOF > ${rootmnt}/etc/rc2.d/S01mergeusers.sh
+#
+# mergeusers.sh	Merge users in every mod.
+#
+#
+
+VERBOSE=yes
+TMPTIME=0
+[ -f /etc/default/rcS ] && . /etc/default/rcS
+. /lib/lsb/init-functions
+
+[ ! -d /.dirs/mods ] && exit 0
+
+log_begin_msg "Merging module users and groups..."
+
+# merge passwd
+for f in \$(find /.dirs/mods/*/etc/passwd 2>/dev/null); do
+    diff -ur /etc/passwd \$f | grep ^+ | sed -e 's/^+//g' > /tmp/merge
+    cat /tmp/merge >> /etc/passwd
+    rm -f /tmp/merge 
+done
+
+# merge shadow
+for f in \$(find /.dirs/mods/*/etc/shadow 2>/dev/null); do
+    diff -ur /etc/shadow \$f | grep ^+ | sed -e 's/^+//g' > /tmp/merge
+    cat /tmp/merge >> /etc/shadow
+    rm -f /tmp/merge 
+done
+
+# merge groups
+for f in \$(find /.dirs/mods/*/etc/group 2>/dev/null); do
+    diff -ur /etc/group \$f | grep ^+ | sed -e 's/^+//g' > /tmp/merge
+    cat /tmp/merge >> /etc/group
+    rm -f /tmp/merge 
+done
+
+log_end_msg 0
+
+exit 0
+EOF
+
+
+chmod +x ${rootmnt}/etc/rc2.d/S01mergeusers.sh
+
+exit 0

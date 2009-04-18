@@ -1,0 +1,42 @@
+#!/bin/sh
+# Set the tmpfs partition
+
+
+. /scripts/functions
+# break in live-tmpfs
+maybe_break live-tmpfs
+
+/bin/loadkeys /etc/console/boottime.kmap.gz >> /tmp/initramfs.debug 2>&1
+
+
+modprobe -q squashfs >> /tmp/initramfs.debug 2>&1
+modprobe -q loop >> /tmp/initramfs.debug 2>&1
+modprobe -q aufs >> /tmp/initramfs.debug 2>&1
+
+ln -s /bin/busybox /bin/losetup
+
+
+mkdir /mnt >> /tmp/initramfs.debug 2>&1
+echo "Mounting tmpfs " >> /tmp/initramfs.debug 2>&1
+mount -t tmpfs -o "size=80%" tmpfs /mnt >> /tmp/initramfs.debug 2>&1
+
+# hack for ubuntu udev
+if [ -x /sbin/udevtrigger ]; then
+  echo "TMPFS exec udevadm trigger " >> /tmp/initramfs.debug 2>&1
+  #log_begin_msg "Wait until livecd devices are ready"
+  /sbin/udevadm trigger
+
+  # wait until some devices creation
+  follow=0
+  while [ $follow = 0 ]; do
+    sleep 1
+    if [ -d /dev/disk ]; then
+      follow=1
+      break
+    fi
+  done
+  #log_end_msg
+fi
+
+
+exit 0

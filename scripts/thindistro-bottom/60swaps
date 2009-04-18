@@ -1,0 +1,179 @@
+#!/bin/sh
+# 
+
+quiet=n
+
+cat <<EOF > ${rootmnt}/etc/rc2.d/S06swapon.sh
+#
+# swapon.sh	Search all the local disks and try to use swap part or swap file.
+#
+# Version:	@(#)swapon.sh  1.0  18-Mar-2006  mariodebian@gmail.com
+#
+
+# read common init functions
+. /lib/lsb/init-functions
+
+############ VARS ###############
+# need 128 mb of free space (in kb)
+need_free_space=131071
+
+mem_max=\$(grep MemTotal /proc/meminfo | awk '{print \$2}')
+
+# Exit if ram > 128 Mb
+if [ \${mem_max} -ge \${need_free_space} ] ; then
+ exit 0
+fi
+
+# no create more swap than ram (memory limits systems)
+if [ \${need_free_space} -ge \${mem_max} ] ; then
+ # mem_max - 10 Mb
+ need_free_space=\$((\$mem_max-10240))
+fi
+
+
+
+
+swap_mnt_file=/mnt/tmp/swap.file
+#################################
+
+swap_parts_num=\$(grep ^/dev /etc/fstab|grep -c swap)
+swap_parts_devs=\$(grep ^/dev /etc/fstab|grep swap | awk '{print \$1}')
+
+ext3_parts_num=\$(grep ^/dev /etc/fstab|grep -c ext3)
+ext3_parts_devs=\$(grep ^/dev /etc/fstab|grep ext3 | awk '{print \$1}')
+
+fat32_parts_num=\$(grep ^/dev /etc/fstab|grep -c vfat)
+fat32_parts_devs=\$(grep ^/dev /etc/fstab|grep vfat | awk '{print \$1}')
+
+######### FUNCTIONS ##########
+
+check_if_swaps() {
+ # exit if swap is mounted
+ if [ \$(grep -c -v ^Filename /proc/swaps ) != 0 ]; then
+   log_end_msg 0
+   exit 0
+ fi
+}
+
+mount_exits_swap() {
+ for dev in \$1 ; do
+  swapon \${dev}
+ done
+}
+
+check_avail_part() {
+ # \$1 = list of available parts
+ # \$2 filesystem (ext3 or vfat)
+ for dev in \$1 ; do
+  mkdir -p /mnt/tmp >/dev/null 2>&1
+  mount -t \${2} \${dev} -o rw /mnt/tmp >/dev/null 2>&1
+  #sleep 1
+  if [ \$(grep -c \${dev} /proc/mounts) != 1 ]; then
+   # not mounted
+   continue
+  fi
+  free_space=\$(df \${dev}| grep ^/dev| awk '{print \$4}')
+  # check if free space > 64 Mb
+  if [ \${free_space} -ge \${need_free_space} ] ; then
+    can_create_swapfile \${dev}  
+  fi
+  check_if_swaps
+  umount \${dev}
+
+ done 
+}
+
+can_create_swapfile() {
+  if [ -f \${swap_mnt_file} ]; then
+   # swap file exist for previous session, format it and mount
+    mkswap \${swap_mnt_file} >/dev/null 2>&1
+    sync
+    swapon \${swap_mnt_file}
+  else
+  # create swapfile
+  dd if=/dev/zero of=\${swap_mnt_file} bs=\${need_free_space}k count=1 > /dev/null 2>&1
+    if [ ! -f \${swap_mnt_file} ]; then
+      echo "Error creating swapfile in \${1}"
+      return
+    else
+      # mount swap file
+      mkswap \${swap_mnt_file} > /dev/null 2>&1
+      sync
+      swapon \${swap_mnt_file}
+    fi
+  fi
+}
+
+############# begin code ############
+
+log_begin_msg "Active swap partitions"
+
+# mount swap parts if exits
+if [ \${swap_parts_num} != 0 ]; then
+ check_if_swaps
+fi
+
+# search ext3 parts, create swapfile of \${need_free_space} and mount
+if [ \${ext3_parts_num} != 0 ]; then
+ check_avail_part "\${ext3_parts_devs}" "ext3"
+ check_if_swaps
+fi
+
+# search vfat parts, create swapfile and mount
+if [ \${fat32_parts_num} != 0 ]; then
+ check_avail_part "\${fat32_parts_devs}" "vfat"
+ check_if_swaps
+fi
+
+# if here we have no swap
+log_end_msg 1
+
+exit 0
+EOF
+
+cat <<EOF > ${rootmnt}/etc/rc6.d/K92swapoff.sh
+#
+# swapoff.sh	Umount swap files swap file.
+#
+# Version:	@(#)swapoff.sh  1.0  18-Mar-2006  mariodebian@gmail.com
+#
+
+# read common init functions
+. /lib/lsb/init-functions
+
+log_begin_msg "Umounting swap"
+
+check_if_swaps() {
+ # exit if swap is not mounted
+ if [ \$(grep -c -v ^Filename /proc/swaps ) = 0 ]; then
+   #exit if no swap
+   log_end_msg 0
+   exit 0
+ fi
+}
+
+swaps=\$(grep -v ^Filename /proc/swaps | awk '{print \$1}')
+
+for swap in \$swaps; do
+  swapoff \$swap > /dev/null 2>&1
+  if [ \${swap} = \${swap_mnt_file} ]; then
+    sync
+    umount /mnt/tmp >/dev/null 2>&1 
+  fi
+done
+
+log_end_msg 1
+
+
+
+exit 0
+EOF
+
+
+chmod +x ${rootmnt}/etc/rc2.d/S06swapon.sh 
+
+# copy swapoff to halt and reboot runlevels
+cp ${rootmnt}/etc/rc6.d/K92swapoff.sh ${rootmnt}/etc/rc0.d/K92swapoff.sh 
+chmod +x ${rootmnt}/etc/rc6.d/K92swapoff.sh ${rootmnt}/etc/rc0.d/K92swapoff.sh 
+
+exit 0

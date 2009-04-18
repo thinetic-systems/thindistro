@@ -1,0 +1,52 @@
+#!/bin/sh
+
+PREREQ=""
+
+prereqs()
+{
+	echo "$PREREQ"
+}
+
+case $1 in
+# get pre-requisites
+prereqs)
+	prereqs
+	exit 0
+	;;
+esac
+
+
+. /usr/share/initramfs-tools/hook-functions
+
+. $CONFDIR/initramfs.conf
+
+thindistro_DIR=/etc/thindistro
+
+if [ "${BOOT}" = "thindistro" ]; then
+	# Necessary for SCSI CD-ROMs not automatically detected
+	force_load sr_mod
+
+	# core modules
+	CORE_MODULES="unix ide-core scsi_mod sd_mod sr_mod vfat"
+
+	# USB modules
+	USB_MODULES="ehci-hcd ohci-hcd uhci-hcd sl811-hcd usbcore usb-storage"
+
+	# live modules
+	LIVE_MODULES="squashfs aufs loop ext3 nls_utf8 nls_cp437 nls_iso8859-1"
+
+	for x in ${CORE_MODULES} ; do
+		#echo "CORE module: ${x}"
+		manual_add_modules ${x}
+	done
+
+	for x in ${USB_MODULES}; do
+		#echo "USB module: ${x}"
+		manual_add_modules ${x}
+	done
+
+	for x in ${LIVE_MODULES} ; do
+		#echo "Live module: ${x}"
+		manual_add_modules ${x}
+	done
+fi

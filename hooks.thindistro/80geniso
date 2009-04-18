@@ -1,0 +1,33 @@
+# gen iso
+
+
+# copy files to tmp dir and create ISO
+_echo "Generando iso"
+dir=/tmp/grub-iso$$
+mkdir -p ${dir}/boot/grub ${dir}/meta ${dir}/mods
+
+
+cp -ra ${MODDIR}/* ${dir}/mods/
+cp -ra ${META_MASTER}/meta/* ${dir}/meta/
+cp -ra ${META_MASTER}/boot/grub/* ${dir}/boot/grub/
+
+cp $BOOT/vmlinuz   ${dir}/boot/
+cp $BOOT/initramfs ${dir}/boot/
+
+
+ [ -f /lib/grub/i386-pc/stage2_eltorito ] && install -m 644 /lib/grub/i386-pc/stage2_eltorito ${dir}/boot/grub
+ [ -f /usr/lib/grub/i386-pc/stage2_eltorito ] && install -m 644 /usr/lib/grub/i386-pc/stage2_eltorito ${dir}/boot/grub
+
+( cd ${dir} && \
+genisoimage -l -r -J -V "${TITLE}" -hide-rr-moved -v \
+ -b boot/grub/stage2_eltorito \
+ -no-emul-boot -boot-load-size 4 \
+ -boot-info-table -o  ${META_ISOS}/${IMAGE_NAME}.iso ${dir}/ )
+
+if [ $? = 0 ]; then
+    echo "Iso image done succesfully: ${OUTPUTIMAGE}"
+else
+    echo "Error running mkisofs."
+fi
+rm -rf ${dir} > /dev/null 2>&1
+

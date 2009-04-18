@@ -1,0 +1,39 @@
+#!/bin/sh
+# 
+
+
+quiet=n
+
+
+# XXX Ugly hack to be sure the $init is a copy in the memory and not in the mounted image
+#if [ -f "${rootmnt}${init}" ]; then
+#	mv ${rootmnt}${init} ${rootmnt}${init}_
+#	mv ${rootmnt}${init}_ ${rootmnt}${init}
+#fi		
+
+# Arrange for shells on virtual consoles, rather than login prompts
+. /conf/initramfs.conf
+
+# load meta settings
+[ -f /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf ] && . /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf
+USERNAME=${conf_username}
+
+# Avoid empty liveuser
+if [  "$USERNAME" = "" ] ; then
+ USERNAME=liveuser
+fi
+
+#sed -i -e "s|^\([^:]*:[^:]*:[^:]*\):.*getty.*\<\(tty[0-9]*\).*$|\1:/bin/login -f $USERNAME </dev/\2 >/dev/\2 2>\&1|" ${rootmnt}/etc/inittab
+
+
+# This has the nice side effect of the cron.{daily,weekly,monthly} jobs in
+# /etc/crontab remaining disabled, yet also not run by anacron
+#for file in cryptdisks anacron postfix exim4 hwclock.sh hwclockfirst.sh checkfs.sh checkroot.sh ntpdate mountall.sh ; do
+for file in cryptdisks anacron postfix exim4 checkfs.sh checkroot.sh ntpdate mountall.sh ; do
+   if [ -f ${rootmnt}/etc/init.d/${file} ]; then
+	echo "moving ${rootmnt}/etc/init.d/${file}..." >> /tmp/initramfs.debug
+	mv ${rootmnt}/etc/init.d/${file} ${rootmnt}/etc/init.d/${file}.disabled >> /tmp/initramfs.debug 2>&1
+   fi
+done
+
+exit 0

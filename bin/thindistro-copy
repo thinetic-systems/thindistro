@@ -1,0 +1,181 @@
+#!/bin/bash
+###########################################################################
+#
+# Author: Mario Izquierdo (a.k.a mariodebian)
+# Email: mariodebian@gmail.com
+# Creation Date: 2 Feb 2006
+# Version: 0.1
+#
+#  Copy squashfs and other files and install grub in a USB memory 
+#
+# FIXME: very initial version, needs a lot of comprobations and so on.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+###########################################################################
+
+
+. /etc/thindistro/thindistro.conf
+. /etc/thindistro/initramfs.conf
+
+
+
+
+USBDISK_MNT="/media/distro/pendrive"
+
+
+
+
+get_disk ()
+{
+disk=${1:0:8}
+partition=${1:8}
+echo $disk
+}
+
+get_partitions ()
+{
+echo $(ls /dev/[s]d[a-z]?* 2> /dev/null)
+}
+
+
+
+#echo BOOT=${BOOT}
+
+if [ "${BOOT}" != "thindistro" ]; then
+  echo ""
+  echo "Edit and change var BOOT=${BOOT} to BOOT=thindistro and optionally add USERNAME=liveuser"
+  exit
+fi
+
+
+
+
+devices=$(get_partitions)
+
+#echo $devices
+
+if [ "x$devices" = "x" ]; then
+  echo "No sdX devices found."
+  exit
+fi
+
+
+echo ""
+echo "List of avalaible devices to install USB metadistro:"
+for device in ${devices}; do
+echo "  ${device}  "
+done
+echo ""
+echo -n "Please specify device/partition: "
+read USBDISK_DEVICE
+
+if [ ! -e ${USBDISK_DEVICE} ]; then
+  echo "ERROR: Device ${USBDISK_DEVICE} don't exists"
+  exit 1
+fi
+
+
+USBDISK=$(get_disk ${USBDISK_DEVICE})
+
+
+# check mountpoints and device exists
+
+
+if [ ! -d ${USBDISK_MNT} ]; then
+  echo "ERROR: Mountpoint ${USBDISK_MNT} don't exists, creating it."
+  mkdir -p ${USBDISK_MNT}
+fi
+
+# mount pendrive, if not mounted
+
+if [ $(grep ${USBDISK_DEVICE} /proc/mounts |wc -l) = 0 ]; then
+  echo "Mounting ${USBDISK_DEVICE} in ${USBDISK_MNT}"
+  mount ${USBDISK_DEVICE} ${USBDISK_MNT}
+else
+
+  echo "Umounting and mounting ${USBDISK_DEVICE} in ${USBDISK_MNT}"
+  umount ${USBDISK_DEVICE}
+  mount ${USBDISK_DEVICE} ${USBDISK_MNT}
+fi
+
+
+if [ "$1" = "-init" ]; then
+  echo "Copying vmlinuz and initramfs only..."
+  rm -f ${USBDISK_MNT}/boot/initramfs
+  cp $META_MASTER/boot/initramfs ${USBDISK_MNT}/boot/initramfs
+  cp $META_MASTER/boot/vmlinuz ${USBDISK_MNT}/boot/vmlinuz
+  sync
+  umount ${USBDISK_DEVICE}
+  exit
+fi
+
+
+if [ "$1" = "-menu" ]; then
+  echo "Copying menu.lst only..."
+  cp $META_MASTER/boot/grub/menu.lst ${USBDISK_MNT}/boot/grub/menu.lst
+  sync
+  umount ${USBDISK_DEVICE}
+  exit
+fi
+
+# copying distro
+
+echo -n "Copy system files? [Y/n] "
+read copy
+if [ "${copy}" != "n" ]; then
+ echo "Copying META image..."
+ cp -ra $META_MASTER/[Mm][Ee][Tt][Aa]/ ${USBDISK_MNT}
+ cp -ra $META_MASTER/boot/ ${USBDISK_MNT}
+ echo "Waiting for \"sync\"..."
+ sync
+ sleep 2
+fi
+
+
+
+# install grub
+echo -n "Install grub in ${USBDISK} [Y/n] "
+read grub
+if [ "${grub}" = "n"  ]; then
+  echo "Skip grub installation."
+else
+  grub-install --no-floppy --root-directory=${USBDISK_MNT} ${USBDISK} > /dev/null 2>&1
+  sync
+  DRIVE=${USBDISK}
+  let PART=${USBDISK_DEVICE#$DRIVE}-1
+  GRUB_DEV=$(grep $DRIVE ${USBDISK_MNT}/boot/grub/device.map | cut -c2-4)
+  ROOT="(${GRUB_DEV},${PART})"
+  echo "Installing grub in root=${ROOT} grub-device=${GRUB_DEV}..."
+  grub --batch --device-map=${USBDISK_MNT}/boot/grub/device.map <<EOT
+root    $ROOT
+setup   ($GRUB_DEV)
+quit
+EOT
+
+fi
+
+# umount pendrive
+umount ${USBDISK_DEVICE}
+
+
+# exit
+echo ""
+echo ""
+echo "Your device ${USBDISK_DEVICE} is now capable to start ${VOLUME_NAME}"
+echo ""
+echo "Reboot and boot from usbdisk."
+
+exit 0

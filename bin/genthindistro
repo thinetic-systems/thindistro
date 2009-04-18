@@ -1,0 +1,231 @@
+#!/bin/bash
+
+[ -e /etc/thindistro/thindistro.conf ] && . /etc/thindistro/thindistro.conf
+
+DISTRO=lenny
+DISTRO_VERSION="5.0"
+VOLUMENAME="ThinDistro"
+ARCH=i386
+
+NAME="ThinBlue"
+VERSION="0.3.1"
+
+IMAGE_NAME="$NAME-$VERSION"
+TITLE="$NAME $VERSION"
+META_KERNEL="2.6.29-1-vortex86dx"
+
+stamp=$(date '+%Y%m%d_%H%M')
+created=$(date '+%Y%m%d')
+
+if [ "$MIRROR" = "" ]; then
+  MIRROR=192.168.0.3
+fi
+
+if [ "$LOCAL_MIRROR" = "" ]; then
+  LOCAL_MIRROR=
+else
+  LOCAL_MIRROR=1
+fi
+
+BASEMOD=$MODDIR/00_base_${VERSION}.squashfs
+GENTHINDISTRO=genthindistro
+APT_OPTS="-y --force-yes -o Dpkg::Options::=\"--force-confnew\""
+
+LZMA=""
+# check LZMA
+mksquashfs -help 2>&1 | grep -q nolzma && LZMA="-nolzma"
+
+MY_NAME=$(basename $0)
+
+mkdir -p $WORKDIR/mods
+
+_help() {
+cat << EOF
+  Help off genthindistro:
+
+    LOCAL_MIRROR=1 
+    MIRROR=$MIRROR IP or hostname off mirror
+
+EOF
+}
+
+_echo() {
+  echo ""
+  echo " *  $@"
+  echo ""
+}
+
+_exit() {
+  echo "Catched error:"
+  echo "--------------------------------"
+  echo "$@"
+  echo "--------------------------------"
+  . $HOOKS/90clean
+  _echo "killing $MY_NAME"
+  killall $MY_NAME
+}
+
+_revert_invoke() {
+ if [ "$1" != "" ]; then
+   DIR=$1
+ else
+   DIR=$CHROOT
+ fi
+ if [ -e $DIR/usr/sbin/invoke-rc.d.REAL ]; then
+   _echo "Reverting /usr/sbin/invoke-rc.d"
+   mv $DIR/usr/sbin/invoke-rc.d.REAL $DIR/usr/sbin/invoke-rc.d
+ fi
+ if [ -e $DIR/sbin/start-stop-daemon.REAL ]; then
+   _echo "Reverting /sbin/start-stop-daemon"
+   mv $DIR/sbin/start-stop-daemon.REAL $DIR/sbin/start-stop-daemon
+ fi
+}
+
+_add_invoke() {
+ if [ "$1" != "" ]; then
+   DIR=$1
+ else
+   DIR=$CHROOT
+ fi
+  if [ ! -e $DIR/usr/sbin/invoke-rc.d.REAL ]; then
+    # Cambiamos invoke-rc.d
+    mv $DIR/usr/sbin/invoke-rc.d $DIR/usr/sbin/invoke-rc.d.REAL
+    cat << EOF > $DIR/usr/sbin/invoke-rc.d
+#!/bin/sh
+echo "" >&2
+echo "  ** Fake invoke-rc.d called with args: '\$@'" >&2
+echo "" >&2
+exit 0
+EOF
+    chmod +x $DIR/usr/sbin/invoke-rc.d
+  fi
+
+  if [ ! -e $DIR/sbin/start-stop-daemon.REAL ]; then
+    # Cambiamos start-stop-daemon
+    mv $DIR/sbin/start-stop-daemon $DIR/sbin/start-stop-daemon.REAL
+    cat << EOF > $DIR/sbin/start-stop-daemon
+#!/bin/sh
+echo "" >&2
+echo "  ** Fake start-stop-daemon called with args: '\$@'" >&2
+echo "" >&2
+exit 0
+EOF
+    chmod +x $DIR/sbin/start-stop-daemon
+  fi
+
+}
+
+
+create_module() {
+    mkdir -p $MODTMP $MODRO $MODRW
+    _echo "Building module $1"
+    mount -o loop -t squashfs $BASEMOD $MODRO || _exit "BASE module not found or error while mounting"
+    mount -t aufs -o br:${MODTMP}:${MODRO} none ${MODRW} || _exit "Can't create RW dir from BASE module"
+    #mount -t unionfs -o dirs=$MODTMP/=rw:$MODRO/=ro unionfs $MODRW || _exit "Can't create RW dir from BASE module"
+
+    mount --bind /proc $MODRW/proc
+    mount --bind /sys  $MODRW/sys
+    mount --bind /dev  $MODRW/dev
+
+    _add_invoke $MODRW
+
+    chroot $MODRW << EOC || _exit "Error installing module $1"
+export LC_ALL=C
+export LC_MESSAGES=C
+export DEBCONF_FRONTEND="noninteractive"
+export DEBIAN_FRONTEND="noninteractive"
+export UCF_FORCE_CONFFOLD=1
+export ERROR=0
+yes| apt-get $APT_OPTS install $2 || ERROR=1
+apt-get clean
+apt-get $APT_OPTS autoremove --purge
+exit \$ERROR
+EOC
+    
+    if [ "$3" != "" ]; then
+      cp $3 $MODRW/
+      $3 absolute
+      chroot $MODRW << EOC || _exit "Error installing module $1"
+export LC_ALL=C
+export LC_MESSAGES=C
+export DEBCONF_FRONTEND="noninteractive"
+export DEBIAN_FRONTEND="noninteractive"
+export UCF_FORCE_CONFFOLD=1
+export ERROR=0
+/$(basename $3) chroot
+EOC
+       rm -f $MODRW/$(basename $3)
+    fi
+
+    umount -l $MODRW/proc
+    umount -l $MODRW/sys
+    umount -l $MODRW/dev
+    _revert_invoke $MODRW
+    rm -f $MODDIR/$1-$VERSION.squashfs*
+
+    cat << EOF > $MODDIR/exclude_files
+root/
+boot/
+tmp/
+lib/modules/*
+var/cache/apt*
+usr/sbin/invoke-rc.d
+sbin/start-stop-daemon
+EOF
+
+    mksquashfs $MODTMP/  $MODDIR/$1_$VERSION.squashfs $LZMA -noappend \
+               -ef $MODDIR/exclude_files || _exit "Can't make squashfs file"
+    chmod 644 $MODDIR/$1_$VERSION.squashfs
+
+    rm -f $MODDIR/exclude_files
+
+    SHA512=$(python -c "import hashlib; data=open(\"$MODDIR/$1_$VERSION.squashfs\", 'rb').read(); print hashlib.sha512(data).hexdigest()")
+    echo "$SHA512" > $MODDIR/$1_$VERSION.squashfs.sha512
+    _echo "Mod: $1 SHA512 '$SHA512'"
+
+    # get list of packages installed
+    rm -f $MODDIR/$1_$VERSION.squashfs.pkglist
+    for p in $(ls $MODTMP/var/lib/dpkg/info/*list); do
+      basename $p ".list" >> $MODDIR/$1_$VERSION.squashfs.pkglist
+    done
+
+    umount $MODRW
+    umount $MODRO
+
+    rm -rf $MODTMP $MODRW $MODRO
+}
+
+
+
+if [ "$1" = "--help" ]; then
+  _help
+  exit 1
+fi
+
+if [ "$1" = "--clean" ]; then
+  rm -rf $CHROOT
+  _echo "Cleaning modules..."
+  rm -f $MODDIR/*
+  
+  _echo "Cleaning kernel..."
+  rm -f $BOOT/*
+  exit 1
+fi
+
+if [ "$1" = "--rebuild-kernel" ]; then
+  REBUILD_KERNEL=1
+else
+  [ ! -e $BOOT/initramfs ] && REBUILD_KERNEL=1
+fi
+
+
+for hook in $(ls $HOOKS/*| grep -v "~"); do
+  _echo "Loading $hook"
+  [ -f $hook ] && . $hook || _exit "Error while exec $hook"
+done
+
+
+
+
+
+

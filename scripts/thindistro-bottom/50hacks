@@ -1,0 +1,42 @@
+#!/bin/sh
+# 
+
+
+quiet=n
+
+. /conf/initramfs.conf
+
+chroot ${rootmnt}/ /bin/loadkeys /etc/console/boottime.kmap.gz >/dev/null 2>&1
+
+# Fixing find noleaf problems with unionfs
+mv ${rootmnt}/usr/bin/find ${rootmnt}/usr/bin/find.orig
+
+cat <<EOF > ${rootmnt}/usr/bin/find
+#!/bin/sh
+IFS=""
+/usr/bin/find.orig -L -P \$@
+
+EOF
+
+chmod +x ${rootmnt}/usr/bin/find
+
+
+# Fixing reboot command and eject process from everywhere
+mv ${rootmnt}/sbin/reboot ${rootmnt}/sbin/reboot.orig
+
+cat <<EOF > ${rootmnt}/sbin/reboot
+#!/bin/sh
+
+#chvt 1
+/sbin/reboot.orig \$@
+
+EOF
+
+chmod +x ${rootmnt}/sbin/reboot
+
+# Setting right permissions for every dir in which we modify files from here
+# Right now, they are: /sbin, /usr/bin
+chmod 755 ${rootmnt}/sbin
+chmod 755 ${rootmnt}/usr/bin
+
+exit 0

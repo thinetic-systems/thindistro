@@ -1,0 +1,36 @@
+
+# default num
+default         0
+
+# timeout sec
+timeout         5
+
+# pretty colours
+#color cyan/black white/blue
+
+
+
+title   ThinDistro
+root
+kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro quiet
+initrd  /boot/initramfs
+boot
+
+title   ThinBlue
+root
+kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro quiet mods=thinblue
+initrd  /boot/initramfs
+boot
+
+title   ThinDistro USB
+root
+kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro fromusb quiet
+initrd  /boot/initramfs
+boot
+
+title   ThinDistro qemu (DEBUG)
+root
+kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro fromusb qemudev=/dev/hda1
+initrd  /boot/initramfs
+boot
+

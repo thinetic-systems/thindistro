@@ -1,0 +1,43 @@
+TODO for usb metadistro
+
+====
+
+ o View possible bugs !!
+
+ o Make an iso image to boot from USB in BIOS don't have this option. 
+   => genusbliveCD [DONE]
+
+ o Make a mini article in spanish/english http://usebix.consoltux.com [DONE]
+
+TODO for pxes images
+====================
+
+ * Change PXES name to other more personal (help needed) [DONE] => TCOS
+
+ * Work on ltspfs:
+  http://wiki.ltsp.org/twiki/bin/view/Ltsp/LtspFS 
+  http://ltsp.mirrors.tds.net/pub/ltsp/utils/ltsp-server-pkg-debian_0.1_i386.deb
+  [DONE] =>  ltspfs working with autofs, goodbye SAMBA
+
+ * Scan local disk if no partitions found and some var is passed from cmdline
+   (force_use_local_disk) delete all disk, create swap and ext3 partitions.
+   Or use empty space. ASK if windows partition is found and contain data.
+   User dialog, from shell scripts. DANGEROUS
+
+ * Scan local disk and use swap if exists or create swap file in ext3 or
+   vfat partition. [DONE] => swapon
+
+ * Make a small daemon to sync disk every 30 seconds???
+
+ * Using local disk download (by tftp) squashfs images of other apps
+   (download one time, use always) need control version file... to update if needed
+
+ * Create task that depends squashfs modules (example, try to start samba, 
+   samba binary not found, download samba.squashfs, mount and start)
+   NEED squashfs and unionfs support (very easy) mount / with some modules not probed.
+
+ * Can use cdrom to boot from it ( no need of special networks cards )
+
+ * Admin tags in init scripts ( clean hdd , save config files... )
+
+ * Configure personalized boot options with ip, cmdline, dhcp or both.

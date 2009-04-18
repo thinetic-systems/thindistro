@@ -1,0 +1,66 @@
+#!/bin/sh
+# Get the image, putting in the rigth place and mount it
+
+
+. /scripts/functions
+# break in live-image
+maybe_break live-image
+
+
+IMAGE=/mnt/image
+mkdir -p ${IMAGE} >> /tmp/initramfs.debug 2>&1
+
+[ ! -e /dev/loop0 ] && mknod /dev/loop0 b 7 0 >> /tmp/initramfs.debug 2>&1
+mount -r -o loop -t squashfs /mnt/dev/mods/00_base*.squashfs $IMAGE >> /tmp/initramfs.debug 2>&1
+if [ $? = 0 ]; then
+	echo "SETUP_IMAGE: image mounted"  >> /tmp/initramfs.debug 2>&1
+else
+	echo "SETUP_IMAGE: ERROR -> image non mounted"  >> /tmp/initramfs.debug 2>&1
+	exit 1
+fi
+
+
+# defaults
+modsenabled=0
+_mods=""
+
+# mount mods
+for x in $(cat /proc/cmdline); do
+  case $x in
+      mods=*)
+          _mods=${x#mods=}
+          modsenabled=1
+      ;;
+  esac
+done
+
+if [ "$modsenabled" = "1" ]; then
+
+  mkdir -p /mnt/mods
+
+  mods=$(echo $_mods | sed -e 's/,/ /g')
+  for m in $mods; do
+    # search mod
+    mod=$(find /mnt/dev/mods/ -name "*$m*squashfs")
+
+    if [ "$mod" != "" ] && [ -f "$mod" ]; then
+      moddir=$(basename "$mod" | awk -F"_" '{print $1"_"$2}')
+
+      # mount mod
+      mkdir -p /mnt/mods/$moddir
+      echo "SETUP_IMAGE: mount mod='$m' mfile='$mod'" >> /tmp/initramfs.debug 2>&1
+      losetup $(losetup -f) $mod >> /tmp/initramfs.debug 2>&1
+      mount -r -t squashfs $(losetup | awk -F":" "/$moddir/ {print \$1}") /mnt/mods/$moddir >> /tmp/initramfs.debug 2>&1
+      #mount -r -o loop -t squashfs $mod /mnt/mods/$moddir >> /tmp/initramfs.debug 2>&1
+      if [ $? != 0 ]; then
+        echo "SETUP_IMAGE: fail to mount mod='$m' mfile='$mod'" >> /tmp/initramfs.debug 2>&1
+      fi
+    fi
+
+  done
+
+fi
+
+maybe_break mountmods
+
+exit 0

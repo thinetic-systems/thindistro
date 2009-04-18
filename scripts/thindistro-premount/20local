@@ -1,0 +1,135 @@
+#!/bin/sh
+# Search the image in the local disks
+
+
+. /scripts/functions
+# break in live-local
+maybe_break live-local
+
+for fs in isofs ext3 vfat ; do
+	echo "Loading $fs" >> /tmp/initramfs.debug 2>&1
+	modprobe -q $fs >> /tmp/initramfs.debug 2>&1
+done
+
+# Create mountpoint
+mkdir -p /mnt/dev >> /tmp/initramfs.debug 2>&1
+
+
+
+
+fromusb=$(grep -c fromusb /proc/cmdline)
+if [ "$fromusb" = "1" ]; then
+    # core modules
+    CORE_MODULES="scsi_mod sd_mod sr_mod nls_utf8 vfat"
+    # USB modules
+    USB_MODULES="usbcore ehci-hcd ohci-hcd uhci-hcd usb-storage"
+
+    for mod in ${CORE_MODULES}; do
+      echo "Loading core ${mod}"  >> /tmp/initramfs.debug 2>&1
+      modprobe -q $mod >> /tmp/initramfs.debug 2>&1
+    done
+    for mod in ${USB_MODULES}; do
+      echo "Loading usb ${mod}"  >> /tmp/initramfs.debug 2>&1
+      modprobe -q $mod >> /tmp/initramfs.debug 2>&1
+    done
+    
+    
+    # qemu hack use hda1 or qemudev passed from cmdline
+    qemu="0"
+    qemudev="/dev/hda1"
+    for x in $(cat /proc/cmdline); do
+            case $x in
+            qemudev=*)
+                   qemudev=${x#qemudev=}
+                   qemu=1
+                    ;;
+           qemu)
+                   qemu=1
+                   quiet=1
+                    ;;
+           esac
+    done
+    
+    if [ "${qemu}" != "0" ]; then
+      #echo -n "Qemu mounting ${qemudev}... "
+      mount -t vfat ${qemudev} /mnt/dev >> /tmp/initramfs.debug 2>&1
+      #echo "[ok]"
+      found=y
+      exit 0
+    fi
+
+    echo -n "Waiting for usb device "
+    follow=0
+    while [ $follow = 0 ]; do
+      ls /sys/block/sd* > /dev/null 2>&1
+      if [ $? != 0 ]; then
+        # No sd* devices found, print a dot
+        echo -n "."
+      else
+        for device in /sys/block/sd* ; do
+          echo "Scanning ${device}" >> /tmp/initramfs.debug
+          removable=$(cat ${device}/removable 2> /dev/null)
+          if [ "x${removable}" = "x1" ]; then
+            disk=${device#/sys/block/}
+            echo "Found at $disk" >> /tmp/initramfs.debug
+            follow=1
+            break
+          fi
+        done
+      fi
+      sleep 1
+    done
+
+
+fi
+
+
+
+
+disks=""
+for device in /sys/block/* ; do
+        if [ -e ${device}/device ]; then
+                disk=${device#/sys/block/}
+                ls ${device}/${disk}* > /dev/null 2>&1
+                if [ $? = 0  ]; then
+                        for partition in ${device}/${disk}* ; do
+                                disks="${disks} ${partition#${device}/}"
+                        done
+                else
+                        disks="${disks} ${disk}"
+                fi
+        fi
+done
+
+
+#MNT_OPTS="-orw,fmask=0000,dmask=0000,uid=33,gid=33"
+MNT_OPTS="-orw"
+echo "DISKS=$disks" >> /tmp/initramfs.debug
+
+found=n
+for disk in $disks; do
+	[ "$disk" = "fd0" ] && continue
+	echo "Mounting $disk: «mount -t auto ${MNT_OPTS} /dev/$disk /mnt/dev» " >> /tmp/initramfs.debug
+	mount -t auto ${MNT_OPTS} /dev/$disk /mnt/dev >> /tmp/initramfs.debug 2>&1
+	if [ -e /mnt/dev/mods/00_base*.squashfs ]; then
+		found=y
+		echo "Found base in $disk" >> /tmp/initramfs.debug
+		break
+	else
+		echo "Not found base in $disk" >> /tmp/initramfs.debug
+		umount /mnt/dev >> /tmp/initramfs.debug 2>&1
+	fi
+done
+
+
+
+if [ "x${found}" = "xy" ]; then
+	echo "LOCAL: image mounted" >> /tmp/initramfs.debug
+	exit 0
+else
+	echo "LOCAL: ERROR -> image non mounted" >> /tmp/initramfs.debug
+	exit 1
+fi
+
+
+

@@ -1,0 +1,36 @@
+#!/bin/sh
+
+PREREQ=""
+
+prereqs()
+{
+	echo "$PREREQ"
+}
+
+case $1 in
+# get pre-requisites
+prereqs)
+	prereqs
+	exit 0
+	;;
+esac
+
+
+. /usr/share/initramfs-tools/hook-functions
+. /usr/share/initramfs-tools/scripts/functions
+
+. $CONFDIR/initramfs.conf
+
+
+
+if [ "${BOOT}" = "thindistro" ]; then
+
+. $CONFDIR/thindistro.conf
+
+  # copy scripts into image
+  cp -ra ${META_DIR}/scripts/* ${DESTDIR}/scripts/
+
+  run_scripts ${META_DIR}/hooks
+
+
+fi

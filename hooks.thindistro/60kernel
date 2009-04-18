@@ -1,0 +1,52 @@
+# generate boot kernel image
+
+
+if [ "$REBUILD_KERNEL" = "1" ]; then
+
+
+    mkdir -p $MODTMP $MODRO $MODRW
+    _echo "Generando kernel $META_KERNEL"
+    mount -o loop -t squashfs $BASEMOD $MODRO || _exit "No se ha podido montar módulo BASE"
+    mount -t aufs -o br:${MODTMP}:${MODRO} none ${MODRW} || _exit "No se ha podido crear un directorio modificable para la imagen"
+
+    mount --bind /proc $MODRW/proc
+    mount --bind /sys  $MODRW/sys
+    mount --bind /dev  $MODRW/dev
+
+    _add_invoke $MODRW
+    mkdir -p $MODRW/pkgs
+    cp $PKGSDIR/*deb $MODRW/pkgs/
+
+    chroot $MODRW << EOC || _exit "Error instalando modulo $1"
+export LC_ALL=C
+export LC_MESSAGES=C
+export DEBCONF_FRONTEND="noninteractive"
+export DEBIAN_FRONTEND="noninteractive"
+export UCF_FORCE_CONFFOLD=1
+export ERROR=0
+depmod -ae $META_KERNEL || ERROR=1
+yes| dpkg -i /pkgs/*deb
+apt-get $APT_OPTS -f install
+mkinitramfs -d /etc/thindistro -o /boot/initramfs.thindistro ${META_KERNEL} || ERROR=1
+exit \$ERROR
+EOC
+
+#yes | dpkg --configure -a
+#apt-get $APT_OPTS -f install
+#apt-get update
+#apt-get $APT_OPTS upgrade || ERROR=1
+
+    cp $MODRW/boot/vmlinuz-${META_KERNEL}     $BOOT/vmlinuz
+    cp $MODRW/boot/initramfs.thindistro  $BOOT/initramfs
+
+    umount -l $MODRW/proc
+    umount -l $MODRW/sys
+    umount -l $MODRW/dev
+    _revert_invoke $MODRW
+
+    umount $MODRW
+    umount $MODRO
+
+    rm -rf $MODTMP $MODRW $MODRO
+
+fi

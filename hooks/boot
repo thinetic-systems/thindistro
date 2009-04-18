@@ -1,0 +1,50 @@
+#!/bin/sh
+
+PREREQ=""
+
+prereqs()
+{
+	echo "$PREREQ"
+}
+
+case $1 in
+# get pre-requisites
+prereqs)
+	prereqs
+	exit 0
+	;;
+esac
+
+
+. /usr/share/initramfs-tools/hook-functions
+. /usr/share/initramfs-tools/scripts/functions
+
+. $CONFDIR/initramfs.conf
+
+
+
+if [ "${BOOT}" = "thindistro" ]; then
+
+  mkdir -p $DESTDIR/etc/console
+  cp /etc/console/boottime.kmap.gz $DESTDIR/etc/console/boottime.kmap.gz
+  copy_exec /bin/loadkeys /bin
+
+  echo " * Overwriting run_scripts() function"
+
+  # hack run_scripts... use numbered
+  cat << EOF >> $DESTDIR/scripts/functions
+
+# TCOS hacked ;)
+run_scripts()
+{
+        initdir=\${1}
+        [ ! -d \${1} ] && return
+        for sc in \$(ls -t1 \${1}); do
+          \${1}/\${sc}
+        done
+}
+
+EOF
+
+
+fi

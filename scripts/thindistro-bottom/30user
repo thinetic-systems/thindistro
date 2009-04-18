@@ -1,0 +1,103 @@
+#!/bin/sh
+# 
+
+
+quiet=n
+
+. /conf/initramfs.conf
+
+
+
+cat <<EOF > ${rootmnt}/etc/rc2.d/S10adduser.sh
+#
+# adduser.sh	Add a new user for the live session.
+#
+# Version:	@(#)adduser.sh  1.0  15-Oct-2005  juanje@interactors.coop
+# Based in casper script
+#
+
+VERBOSE=yes
+TMPTIME=0
+[ -f /etc/default/rcS ] && . /etc/default/rcS
+. /lib/lsb/init-functions
+#. /usr/share/debconf/confmodule
+
+
+#
+# Add the user for the live session
+#
+
+# load meta settings
+[ -f /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf ] && . /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf
+USERNAME=\${conf_username}
+
+# Avoid empty liveuser
+if [  "\$USERNAME" = "" ] ; then
+ USERNAME=thinetic
+fi
+
+
+log_begin_msg "Adding user \"\$USERNAME\"..."
+
+# Comment for testing better
+#for question in username user-fullname user-password user-password-again; do
+#    db_set passwd/\$question $USERNAME
+#    db_fset passwd/\$question seen true
+#done
+#
+#db_set passwd/md5 true
+#db_fset passwd/md5 seen true
+#
+##DEBCONF_RECONFIGURE=1 dpkg-reconfigure -fpassthrough passwd
+#version="\$(dpkg --status passwd | grep ^Version: | sed 's/^Version: //')"
+#CODE=0
+#DEBCONF_RECONFIGURE=1 /var/lib/dpkg/info/passwd.config reconfigure "\$version"
+
+# Ugly way, but necessary by now, and anyway is the way as internally passwd package does....
+# Create the user
+if test -x /usr/sbin/adduser; then
+    adduser --disabled-password --gecos "\$USERNAME" "\$USERNAME" >/dev/null 2>&1
+else
+    useradd -c "\$USERNAME" -m "\$USERNAME" >/dev/null 2>&1
+fi
+
+# Setup the password
+echo "\$USERNAME:\$USERNAME" | chpasswd --md5 >/dev/null 2>&1
+
+# Add to the groups
+if test -x /usr/sbin/adduser; then
+	for group in adm audio cdrom dialout floppy video plugdev dip fuse; do
+		adduser "\$USERNAME" \$group >/dev/null 2>&1
+	done
+	for group in lpadmin scanner admin ; do
+		addgroup --system \$group >/dev/null 2>&1
+		adduser "\$USERNAME" admin >/dev/null 2>&1
+	done
+else
+	log_end_msg 1
+	exit 1
+fi
+
+if [ -f /etc/sudoers ]; then
+    if grep -q \%admin /etc/sudoers; then 
+        sed -i -e '/^%admin/s/ALL$/NOPASSWD: ALL/' /etc/sudoers
+    else
+        echo "%admin  ALL=NOPASSWD: ALL" >> /etc/sudoers
+    fi 
+fi
+
+# Lock the user's password
+# FIXME don't lock password
+# passwd -l \$USERNAME
+
+
+
+log_end_msg 0
+
+exit 0
+EOF
+
+
+chmod +x ${rootmnt}/etc/rc2.d/S10adduser.sh
+
+exit 0

@@ -1,0 +1,61 @@
+# Live filesystem mounting			-*- shell-script -*-
+# 
+
+# Parameter: Where to mount the filesystem
+mountroot ()
+{
+	# checkings
+	#[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/thindistro-top"
+	run_scripts /scripts/thindistro-top
+	#[ "$quiet" != "y" ] && log_end_msg
+
+	# Get the root filesystem type
+	if [ ! -e "${ROOT}" ]; then
+		panic "ALERT!  ${ROOT} does not exist.  Dropping to a shell!"
+	fi
+
+	# Find and mount the Image
+	#[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/thindistro-premount"
+	run_scripts /scripts/thindistro-premount
+	if [ ! -e /mnt/image/etc ]; then
+		panic "Something wrong with the image mounting"
+		# Just in case
+		FS1='(initramfs) ' exec /bin/sh </dev/console >/dev/console 2>&1
+	fi
+	#[ "$quiet" != "y" ] && log_end_msg
+
+	# Mount root
+	unionfs=${rootmnt}
+	changes=/mnt/changes
+	image=/mnt/image
+	dirs=${unionfs}/.dirs
+	mkdir -p ${changes}
+
+	maybe_break union
+
+	#grep -q unionfs /proc/modules && mount -t unionfs -o dirs=${changes}=rw:${image}=ro unionfs ${unionfs} 
+
+	echo "mount -t aufs -o br:${changes}:${image} none ${unionfs}" >> /tmp/initramfs.debug 2>&1
+	mount -t aufs -o br:${changes}:${image} none ${unionfs}
+
+	if [ -d /mnt/mods ]; then
+		ALLMODS=$(ls -1 /mnt/mods | sort -n)
+		for m in $ALLMODS; do
+			moddir=/mnt/mods/$m/
+			echo "mount -t aufs -o remount,append:${moddir} none ${unionfs}" >> /tmp/initramfs.debug 2>&1
+			mount -t aufs -o remount,append:${moddir} none ${unionfs}
+		done
+	fi
+
+	mkdir -p ${dirs}
+	mount -o move /mnt ${dirs}
+	
+	if [ $? != 0 ]; then
+		panic "Something wrong with the aufs mounting"
+		# Just in case
+	fi
+
+	#[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/thindistro-bottom"
+	run_scripts /scripts/thindistro-bottom
+	#[ "$quiet" != "y" ] && log_end_msg
+}

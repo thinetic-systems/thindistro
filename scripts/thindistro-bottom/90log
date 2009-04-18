@@ -1,0 +1,12 @@
+#!/bin/sh
+# 
+
+
+quiet=n
+
+# We want to keep the logs
+mv /tmp/initramfs.debug ${rootmnt}/var/log/
+ln -s ${rootmnt}/var/log/initramfs.debug /tmp/initramfs.debug
+
+
+exit 0

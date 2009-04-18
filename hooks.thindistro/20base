@@ -1,0 +1,185 @@
+# hook for creating base.squashfs
+
+if [ -e ${BASEMOD} ]; then
+  _echo "BASE mod exists"
+else
+
+  #rm -rf $CHROOT
+  [ ! -d $CHROOT/usr ] && (debootstrap $DISTRO $CHROOT http://$MIRROR/mirror/debian || _exit "Error en el debootstrap")
+
+  # configurar sources.list
+  cat << EOF > $CHROOT/etc/apt/sources.list
+deb http://$MIRROR/mirror/debian ${DISTRO} main contrib non-free
+
+EOF
+
+  cat << EOF > $CHROOT/etc/apt/apt.conf.d/06norecomends 
+APT
+{
+	Install-Recommends "false";
+	Install-Suggests "false";
+};
+EOF
+
+  _echo "Configurando DEBCONF, zona horaria y mapa de consola"
+
+  LC_ALL=C LC_MESSAGES=C chroot $CHROOT debconf-set-selections << EOF
+tzdata tzdata/Areas select Europe
+tzdata tzdata/Zones/Europe select Madrid
+console-data console-data/keymap/family select qwerty
+console-data console-data/keymap/qwerty/layout select Spanish
+console-data console-data/keymap/qwerty/spanish/variant select Standard
+console-data console-data/keymap/querty/spanish/standard/keymap select Standard
+console-common console-data/keymap/family select qwerty
+console-common console-data/keymap/qwerty/layout select Spanish
+console-common console-data/keymap/qwerty/spanish/variant select Standard
+console-common console-data/keymap/querty/spanish/standard/keymap select Standard
+EOF
+
+
+  echo "Europe/Madrid" > $CHROOT/etc/timezone
+
+  chroot $CHROOT/ << EOF
+export LC_ALL=C
+export LC_MESSAGES=C
+export DEBCONF_FRONTEND="noninteractive"
+export DEBIAN_FRONTEND="noninteractive"
+dpkg-reconfigure tzdata
+EOF
+
+  mount --bind /proc $CHROOT/proc
+  mount --bind /sys  $CHROOT/sys
+  mount --bind /dev  $CHROOT/dev
+
+  _add_invoke $CHROOT
+
+
+base_install() {
+  chroot $CHROOT << EOC || _exit "Error instalando base"
+export LC_ALL=C
+export LC_MESSAGES=C
+export DEBCONF_FRONTEND="noninteractive"
+export DEBIAN_FRONTEND="noninteractive"
+export UCF_FORCE_CONFFOLD=1
+export EXIT=0
+yes | dpkg --configure -a
+apt-get $APT_OPTS -f install
+apt-get update
+apt-get $APT_OPTS upgrade || EXIT=1
+yes| apt-get $APT_OPTS install $@ || EXIT=1
+apt-get clean
+apt-get $APT_OPTS autoremove --purge
+exit \$EXIT
+EOC
+}
+
+base_remove() {
+  chroot $CHROOT << EOC || _exit "Error instalando base"
+export LC_ALL=C
+export LC_MESSAGES=C
+export DEBCONF_FRONTEND="noninteractive"
+export DEBIAN_FRONTEND="noninteractive"
+export UCF_FORCE_CONFFOLD=1
+export EXIT=0
+yes| apt-get $APT_OPTS remove --purge $@ || EXIT=1
+yes| apt-get $APT_OPTS autoremove --purge
+apt-get clean
+exit \$EXIT
+EOC
+}
+
+  base_install "bzip2 less psmisc udev busybox util-linux tree logrotate beep"
+  
+  
+  # preseed linux debconf
+LC_ALL=C LC_MESSAGES=C chroot $CHROOT debconf-set-selections << EOF
+linux-image-$META_KERNEL	shared/kernel-image/really-run-bootloader	boolean	true
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/postinst/old-system-map-link-$META_KERNEL	boolean	true
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/prerm/removing-running-kernel-$META_KERNEL	boolean	true
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/preinst/failed-to-move-modules-$META_KERNEL	note	
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/postinst/old-dir-initrd-link-$META_KERNEL	boolean	true
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/postinst/old-initrd-link-$META_KERNEL	boolean	true
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/preinst/abort-install-$META_KERNEL	note	
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/postinst/create-kimage-link-$META_KERNEL	boolean	false
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/postinst/bootloader-test-error-$META_KERNEL	note	
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/preinst/overwriting-modules-$META_KERNEL	boolean	true
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/preinst/bootloader-initrd-$META_KERNEL	boolean	false
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/preinst/abort-overwrite-$META_KERNEL	note	
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/postinst/depmod-error-initrd-$META_KERNEL	boolean	false
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/preinst/elilo-initrd-$META_KERNEL	boolean	true
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/postinst/kimage-is-a-directory	note	
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/postinst/bootloader-error-$META_KERNEL	note	
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/preinst/lilo-initrd-$META_KERNEL	boolean	true
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/prerm/would-invalidate-boot-loader-$META_KERNEL	boolean	true
+linux-image-$META_KERNEL	linux-image-$META_KERNEL/postinst/depmod-error-$META_KERNEL	boolean	false
+EOF
+  #base_install "linux-image-$META_KERNEL udev busybox"
+
+  base_install "sudo dbus hal usbutils acpi acpid"
+  
+  # some debug utils
+  base_install "nfs-common openssh-client rsync"
+
+  if [ "$(ls $BASEPKGS/*deb 2>/dev/null)" != "" ]; then
+    _echo "Installing BASEPKGS"
+    cp $BASEPKGS/*deb $CHROOT
+    chroot $CHROOT << EOC || _exit "Error installing basepkgs"
+export LC_ALL=C
+export LC_MESSAGES=C
+export DEBCONF_FRONTEND="noninteractive"
+export DEBIAN_FRONTEND="noninteractive"
+export UCF_FORCE_CONFFOLD=1
+export EXIT=0
+yes | dpkg -i /linux-image*deb
+apt-get $APT_OPTS -f install
+yes| dpkg -i \$(ls /*deb| grep -v linux-image)
+depmod -ae $META_KERNEL
+apt-get $APT_OPTS -f install || EXIT=1
+rm -f /*.deb
+exit \$EXIT
+EOC
+  fi
+
+  umount -l $CHROOT/proc
+  umount -l $CHROOT/sys
+  umount -l $CHROOT/dev
+
+  _revert_invoke $CHROOT
+
+
+  #rm -rf $CHROOT/home/*
+  rm -f $CHROOT/etc/udev/rules.d/70-persistent-net.rules
+  rm -f $CHROOT/etc/X11/xorg.conf
+  
+  # set spanish keyboard
+  mkdir -p $CHROOT/etc/console
+  chroot $CHROOT << EOC || _exit "Error installing keyboard map"
+export LC_ALL=C
+export LC_MESSAGES=C
+export DEBCONF_FRONTEND="noninteractive"
+export DEBIAN_FRONTEND="noninteractive"
+export UCF_FORCE_CONFFOLD=1
+/usr/sbin/install-keymap /usr/share/keymaps/i386/qwerty/es.kmap.gz
+EOC
+
+
+  _echo "Deshabilitando contraseña de root"
+  chroot $CHROOT/ usermod -L root
+
+  # not needed in image (save space)
+  rm -f $CHROOT/boot/initramfs*
+
+  mksquashfs $CHROOT/  $BASEMOD $LZMA -noappend || _exit "No se ha podido generar el archivo squashfs"
+  chmod 644 $BASEMOD
+  # calculate sha512 sum
+  SHA512=$(python -c "import hashlib; data=open(\"$BASEMOD\", 'rb').read(); print hashlib.sha512(data).hexdigest()")
+  echo "$SHA512" > $BASEMOD.sha512
+  _echo "SHA512 '$SHA512'"
+  
+  # get list of packages installed
+  rm -f $BASEMOD.pkglist
+  for p in $(ls $CHROOT/var/lib/dpkg/info/*list); do
+    basename $p ".list" >> $BASEMOD.pkglist
+  done
+  rm -rf $CHROOT
+fi

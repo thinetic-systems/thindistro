@@ -1,0 +1,46 @@
+#!/bin/sh
+
+PREREQ=""
+
+prereqs()
+{
+	echo "$PREREQ"
+}
+
+case $1 in
+# get pre-requisites
+prereqs)
+	prereqs
+	exit 0
+	;;
+esac
+
+# Hooks for loading modules necessaries for the live system into the initramfs
+
+. /usr/share/initramfs-tools/hook-functions
+
+. $CONFDIR/initramfs.conf
+
+thindistro_DIR=/etc/thindistro
+
+if [ "${BOOT}" = "thindistro" ]; then
+	# Necessary for SCSI CD-ROMs not automatically detected
+	#force_load sr_mod
+
+	# Necessary for FIREWIRE CD-ROMs not automatically detected
+	#force_load sbp2
+	#force_load raw1394
+
+	#for x in squashfs unionfs loop vfat nls_utf8 nls_cp437 nls_iso8859-1 ; do
+	for x in squashfs aufs loop vfat nls_utf8 nls_cp437 nls_iso8859-1 ; do
+		echo " * thindistro module: ${x}"
+		manual_add_modules ${x}
+	done
+	# delete usplash
+	echo " * Delete usplash"
+	rm -rf $DESTDIR/usr/lib/usplash
+	rm -f $DESTDIR/sbin/usplash*
+	rm -f $DESTDIR/scripts/init-top/framebuffer
+	rm -f $DESTDIR/scripts/init-top/usplash
+
+fi

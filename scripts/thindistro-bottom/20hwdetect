@@ -1,0 +1,114 @@
+#!/bin/sh
+# 
+
+
+quiet=n
+
+
+
+
+# Setup the /etc/network/interfaces
+cat <<FEOF > ${rootmnt}/etc/rcS.d/S40networkdevs
+#
+# networkdevs	Setup the network. By default is going to be with dhcp
+#
+# Version:	@(#)networkdevs  1.0  15-Oct-2005  juanje@interactors.coop
+#
+
+VERBOSE=yes
+TMPTIME=0
+[ -f /etc/default/rcS ] && . /etc/default/rcS
+. /lib/lsb/init-functions
+
+# load meta settings
+[ -f /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf ] && . /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf
+
+#
+# Setup the network
+#
+#log_begin_msg "Configuring network interfaces..."
+#log_begin_msg "Network setting..."
+
+devs=\$(ls /sys/class/net/ |grep -v "sit"|grep -v "lo")
+echo devs=\$devs >> /var/log/initramfs.debug
+
+cat <<EOF > /etc/network/interfaces
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+EOF
+
+configured_devices=0
+
+# configure first device
+
+for device in \$devs ; do
+
+  if [ \$configured_devices = 0 ]; then
+
+    # IF ip is empty configure device as noauto
+    if [ "\$conf_net_ip" = "" ] ;then
+     echo "# \$device have empty ip in settings.conf, dhcp mode" >> /etc/network/interfaces
+     echo "auto \${device}" >> /etc/network/interfaces	
+     echo "iface \${device} inet dhcp" >> /etc/network/interfaces	
+    else
+     echo "auto \${device}" >> /etc/network/interfaces
+     echo "iface \${device} inet static" >> /etc/network/interfaces
+     echo "  address \$conf_net_ip" >> /etc/network/interfaces
+     echo "  netmask \$conf_net_netmask" >> /etc/network/interfaces
+     echo "  gateway \$conf_net_gateway" >> /etc/network/interfaces
+    fi
+    configured_devices=\$((configured_devices+1))
+
+  # next devices in dhcp mode
+  else
+	echo "auto \${device}" >> /etc/network/interfaces	
+	echo "iface \${device} inet dhcp" >> /etc/network/interfaces	
+  fi
+done
+
+
+if [ ! -z "\${conf_net_dns}" ]; then
+  echo "search \${conf_net_dnsname}" > /etc/resolv.conf
+  for dns in \${conf_net_dns}; do
+    echo "nameserver \${dns}" >> /etc/resolv.conf
+  done
+fi
+
+
+# Setup the hostname
+
+hostname=\${conf_hostname}
+
+echo \$hostname > /etc/hostname
+echo \$hostname > /proc/sys/kernel/hostname
+
+if [ \$(grep -c tcos /proc/cmdline) = "0" ]; then
+# make normal /etc/hosts if no tcos selected
+cat <<EOF > /etc/hosts
+127.0.0.1       localhost.localdomain   localhost       \${hostname}
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+ff02::3 ip6-allhosts
+EOF
+
+fi
+
+
+log_end_msg \$?
+
+exit 0
+FEOF
+
+chmod +x ${rootmnt}/etc/rcS.d/S40networkdevs
+
+exit 0

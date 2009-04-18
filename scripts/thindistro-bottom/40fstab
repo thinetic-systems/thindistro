@@ -1,0 +1,152 @@
+#!/bin/sh
+# 
+
+
+quiet=n
+
+# To avoid fsck
+touch ${rootmnt}/fastboot
+
+cat <<EOF > ${rootmnt}/etc/fstab
+# /etc/fstab: static file system information.
+#
+# <file system> <mount point>   <type>  <options>       <dump>  <pass>
+proc            /proc           proc    defaults        0       0
+sys             /sys            sysfs   defaults        0       0
+EOF
+
+
+cat <<EOF > ${rootmnt}/etc/rc2.d/S05disks.sh
+#
+# disks.sh	Search all the local disks and write them into the /etc/fstab.
+#
+# Version:	@(#)disks.sh  1.0  15-Oct-2005  juanje@interactors.coop
+#
+
+VERBOSE=yes
+TMPTIME=0
+[ -f /etc/default/rcS ] && . /etc/default/rcS
+. /lib/lsb/init-functions
+
+# load meta settings
+[ -f /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf ] && . /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf
+
+
+#
+# Search local disks partitions
+#
+get_partitions ()
+{
+	echo \$(ls /dev/[sh]d[a-z]?* 2>/dev/null)
+}
+
+#
+# Check filesystem
+#
+get_filesystem ()
+{
+tipo=\$(/sbin/fdisk -l |grep \$1 | awk '{if (\$2 = "*") {print \$6};}{if (\$2 != "*") {print \$5};}')
+case "\$tipo" in
+  83)
+	echo "\$1 ext3"
+	;;
+  82)
+	echo "\$1 swap"
+	;;
+  b)
+	echo "\$1 vfat"
+	;;
+  c)
+	echo "\$1 vfat"
+	;;
+  e)
+	echo "\$1 vfat"
+	;;
+  f)
+	echo "\$1 extended"
+	;;
+  7)
+	echo "\$1 ntfs"
+	;;
+  *)
+	echo "\$1 auto"	
+	;;
+esac
+
+}
+
+#
+# Search for CD/DVDs
+#
+get_cdroms ()
+{
+	echo \$(head -3 /proc/sys/dev/cdrom/info 2>/dev/null| tail -1 | cut -f 3-)
+}
+
+#
+# Create fstab
+#
+create_fstab ()
+{
+	#if \$(grep rw /proc/cmdline) ; then
+	# FIXME put in auto while gnome-volume-manager bug is solved
+	if [ \$(cat /proc/cmdline |grep rw| wc -l) = 0 ] ; then
+		defaults="    defaults,users,auto        0       2"
+	elif [ \${conf_local_hd} = "rw" ] ; then		
+		defaults="    defaults,users,auto        0       2"
+	else
+		defaults="    ro,users,auto        0       2"
+	fi
+	partitions=\$(get_partitions)
+	for part in \$partitions; do
+		entry=\$(get_filesystem \$part)
+		dev=\$(echo \$entry | cut -d ' ' -f 1 )
+		fs=\$(echo \$entry | cut -d ' ' -f 2 )
+		if [ "\$fs" = "swap" ] ; then
+			entry="\${dev}	none	swap    sw              0       0"
+		elif [ "\$fs" = "extended" ] ; then
+			# extended partition
+			continue
+		else
+			mntpoint="/media/\${dev#/dev/}"
+			mkdir -p \$mntpoint
+			if [ "\$fs" = "ntfs" ]; then
+				#defaults=\$(echo \${defaults} | sed 's|users|user|g')
+				defaults="    defaults,ro,auto,users,gid=disk        0       2"
+			fi
+			entry="\${dev}	\${mntpoint}	\${fs}	\${defaults}"
+		fi
+		echo \$entry >> /etc/fstab
+	done
+	num=0
+	cdroms=\$(get_cdroms)
+	for cd in \$cdroms; do
+		entry="/dev/\${cd}        /media/cdrom\${num}   udf,iso9660 ro,user,noauto  0       0"
+		mkdir -p /media/cdrom\${num} >> /var/log/initramfs.debug 2>&1
+		let num=num+1
+		echo \$entry >> /etc/fstab
+	done
+	
+}
+
+get_device ()
+{
+	dev=\$(grep /.dirs/dev /proc/mounts | cut -d " " -f 1)
+	echo \$dev
+}
+
+#log_begin_msg "Searching local disks..."
+create_fstab
+rm -f /etc/mtab
+cat /proc/mounts > /etc/mtab
+#mount -a  >> /var/log/initramfs.debug 2>&1
+swapon -a >> /var/log/initramfs.debug 2>&1
+device=\$(get_device)
+mount \$device >> /var/log/initramfs.debug 2>&1
+#log_end_msg 
+
+exit 0
+EOF
+
+chmod +x ${rootmnt}/etc/rc2.d/S05disks.sh 
+
