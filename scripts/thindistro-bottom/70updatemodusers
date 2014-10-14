@@ -8,7 +8,8 @@ quiet=n
 
 
 
-cat <<EOF > ${rootmnt}/etc/rc2.d/S01mergeusers.sh
+cat <<EOF > ${rootmnt}/usr/local/sbin/mergeusers.sh
+#!/bin/sh
 #
 # mergeusers.sh	Merge users in every mod.
 #
@@ -25,21 +26,21 @@ log_begin_msg "Merging module users and groups..."
 
 # merge passwd
 for f in \$(find /.dirs/mods/*/etc/passwd 2>/dev/null); do
-    diff -ur /etc/passwd \$f | grep ^+ | sed -e 's/^+//g' > /tmp/merge
+    diff -ur /etc/passwd \$f | grep ^+[a-z] | sed -e 's/^+//g' > /tmp/merge
     cat /tmp/merge >> /etc/passwd
     rm -f /tmp/merge 
 done
 
 # merge shadow
 for f in \$(find /.dirs/mods/*/etc/shadow 2>/dev/null); do
-    diff -ur /etc/shadow \$f | grep ^+ | sed -e 's/^+//g' > /tmp/merge
+    diff -ur /etc/shadow \$f | grep ^+[a-z] | sed -e 's/^+//g' > /tmp/merge
     cat /tmp/merge >> /etc/shadow
     rm -f /tmp/merge 
 done
 
 # merge groups
 for f in \$(find /.dirs/mods/*/etc/group 2>/dev/null); do
-    diff -ur /etc/group \$f | grep ^+ | sed -e 's/^+//g' > /tmp/merge
+    diff -ur /etc/group \$f | grep ^+[a-z] | sed -e 's/^+//g' > /tmp/merge
     cat /tmp/merge >> /etc/group
     rm -f /tmp/merge 
 done
@@ -50,6 +51,8 @@ exit 0
 EOF
 
 
-chmod +x ${rootmnt}/etc/rc2.d/S01mergeusers.sh
+chmod +x ${rootmnt}/usr/local/sbin/mergeusers.sh
+
+chroot ${rootmnt} /usr/local/sbin/mergeusers.sh
 
 exit 0

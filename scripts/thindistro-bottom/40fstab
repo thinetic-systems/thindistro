@@ -29,7 +29,7 @@ TMPTIME=0
 . /lib/lsb/init-functions
 
 # load meta settings
-[ -f /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf ] && . /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf
+[ -f /.dirs/dev/system/settings.conf ] && . /.dirs/dev/system/settings.conf
 
 
 #
@@ -135,15 +135,14 @@ get_device ()
 	echo \$dev
 }
 
-#log_begin_msg "Searching local disks..."
+log_begin_msg "Searching local disks..."
 create_fstab
 rm -f /etc/mtab
 cat /proc/mounts > /etc/mtab
-#mount -a  >> /var/log/initramfs.debug 2>&1
 swapon -a >> /var/log/initramfs.debug 2>&1
 device=\$(get_device)
-mount \$device >> /var/log/initramfs.debug 2>&1
-#log_end_msg 
+#mount \$device >> /var/log/initramfs.debug 2>&1
+log_end_msg 0
 
 exit 0
 EOF

@@ -22,21 +22,21 @@ chmod +x ${rootmnt}/usr/bin/find
 
 
 # Fixing reboot command and eject process from everywhere
-mv ${rootmnt}/sbin/reboot ${rootmnt}/sbin/reboot.orig
-
-cat <<EOF > ${rootmnt}/sbin/reboot
-#!/bin/sh
-
-#chvt 1
-/sbin/reboot.orig \$@
-
-EOF
-
-chmod +x ${rootmnt}/sbin/reboot
+#mv ${rootmnt}/sbin/reboot ${rootmnt}/sbin/reboot.orig
+#
+#cat <<EOF > ${rootmnt}/sbin/reboot
+##!/bin/sh
+#
+##chvt 1
+#/sbin/reboot.orig \$@
+#
+#EOF
+#
+#chmod +x ${rootmnt}/sbin/reboot
 
 # Setting right permissions for every dir in which we modify files from here
 # Right now, they are: /sbin, /usr/bin
-chmod 755 ${rootmnt}/sbin
-chmod 755 ${rootmnt}/usr/bin
+#chmod 755 ${rootmnt}/sbin
+#chmod 755 ${rootmnt}/usr/bin
 
 exit 0

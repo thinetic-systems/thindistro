@@ -30,6 +30,16 @@ mountroot ()
 	image=/mnt/image
 	dirs=${unionfs}/.dirs
 	mkdir -p ${changes}
+	
+	# mount changes
+    for x in $(cat /proc/cmdline); do
+        case $x in
+            changes=*)
+                mount -t auto ${x#changes=} /mnt/changes/ >> /tmp/initramfs.debug 2>&1
+            ;;
+    esac
+    done
+    
 
 	maybe_break union
 
@@ -45,6 +55,11 @@ mountroot ()
 			echo "mount -t aufs -o remount,append:${moddir} none ${unionfs}" >> /tmp/initramfs.debug 2>&1
 			mount -t aufs -o remount,append:${moddir} none ${unionfs}
 		done
+	fi
+	# overwrite dpkg status
+	STATUS=$(ls -1 /mnt/mods/*/var/lib/dpkg/status 2>/dev/null| tail -1)
+	if [ "$STATUS" != "" ]; then
+		cp $STATUS ${unionfs}/var/lib/dpkg/status
 	fi
 
 	mkdir -p ${dirs}

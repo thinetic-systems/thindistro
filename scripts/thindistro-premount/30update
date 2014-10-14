@@ -11,10 +11,12 @@ if [ ! -d /mnt/dev/mods ]; then
   exit 0
 fi
 
-if [ ! -w /mnt/dev/mods ]; then
+if ! touch /mnt/dev/mods/.test 2>>/tmp/initramfs ; then
   echo "UPDATE: mods dir not writable, exit now" >> /tmp/initramfs.debug
   exit 0
 fi
+
+rm -f /mnt/dev/mods/.test
 
 
 NEWMODS=$(find /mnt/dev/mods -name "*.squashfs.new")

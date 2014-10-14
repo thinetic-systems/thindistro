@@ -9,6 +9,32 @@ if [ "$REBUILD_KERNEL" = "1" ]; then
     mount -o loop -t squashfs $BASEMOD $MODRO || _exit "No se ha podido montar módulo BASE"
     mount -t aufs -o br:${MODTMP}:${MODRO} none ${MODRW} || _exit "No se ha podido crear un directorio modificable para la imagen"
 
+    if [ -d $MODDIR ]; then
+        ALLMODS=$(ls -1 $MODDIR/*squashfs | sort -n)
+        for m in $ALLMODS; do
+            moddir="$WORKDIR/mntmods/"$(basename $m .squashfs | awk -F"_" '{print $1"_"$2}')
+            if [ "$moddir" = "$WORKDIR/mntmods/00_base" ]; then
+                continue
+            fi
+            mkdir -p $moddir
+            # mount squashfs
+            echo "mount -o loop -t squashfs $m $moddir"
+            mount -o loop -t squashfs $m $moddir || _exit "$m module not found or error while mounting"
+            
+            # append
+            echo "mount -t aufs -o remount,append:${moddir} none ${MODRW}"
+            mount -t aufs -o remount,append:${moddir} none ${MODRW}
+        done
+        
+        
+        # overwrite dpkg status
+        STATUS=$(ls -1 $WORKDIR/mntmods/*/var/lib/dpkg/status 2>/dev/null| tail -1)
+        if [ "$STATUS" != "" ]; then
+            cp $STATUS $MODRW/var/lib/dpkg/status
+        fi
+    fi
+
+
     mount --bind /proc $MODRW/proc
     mount --bind /sys  $MODRW/sys
     mount --bind /dev  $MODRW/dev
@@ -17,13 +43,14 @@ if [ "$REBUILD_KERNEL" = "1" ]; then
     mkdir -p $MODRW/pkgs
     cp $PKGSDIR/*deb $MODRW/pkgs/
 
-    chroot $MODRW << EOC || _exit "Error instalando modulo $1"
+    chroot $MODRW << EOC || _exit "Error configurando kernel"
 export LC_ALL=C
 export LC_MESSAGES=C
 export DEBCONF_FRONTEND="noninteractive"
 export DEBIAN_FRONTEND="noninteractive"
 export UCF_FORCE_CONFFOLD=1
 export ERROR=0
+apt-get $APT_OPTS -f install thindistro
 depmod -ae $META_KERNEL || ERROR=1
 yes| dpkg -i /pkgs/*deb
 apt-get $APT_OPTS -f install
@@ -46,7 +73,13 @@ EOC
 
     umount $MODRW
     umount $MODRO
+    
+    # umount $WORKDIR/mntmods
+    for d in $(find $WORKDIR/mntmods -maxdepth 1 -mindepth 1 -type d); do
+      umount $d
+      rmdir $d
+    done
 
-    rm -rf $MODTMP $MODRW $MODRO
+    rm -rf $MODTMP $MODRW $MODRO $WORKDIR/mntmods
 
 fi

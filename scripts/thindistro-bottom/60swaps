@@ -4,6 +4,7 @@
 quiet=n
 
 cat <<EOF > ${rootmnt}/etc/rc2.d/S06swapon.sh
+#!/bin/sh
 #
 # swapon.sh	Search all the local disks and try to use swap part or swap file.
 #

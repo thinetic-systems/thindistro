@@ -12,25 +12,20 @@ timeout         5
 
 title   ThinDistro
 root
-kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro quiet
+kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro quiet pnpbios=off
 initrd  /boot/initramfs
 boot
 
 title   ThinBlue
 root
-kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro quiet mods=thinblue
+kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro quiet pnpbios=off mods=thinblue
 initrd  /boot/initramfs
 boot
 
 title   ThinDistro USB
 root
-kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro fromusb quiet
+kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro fromusb pnpbios=off quiet
 initrd  /boot/initramfs
 boot
 
-title   ThinDistro qemu (DEBUG)
-root
-kernel  /boot/vmlinuz ramdisk_size=100000 root=/dev/ram0 BOOT=thindistro fromusb qemudev=/dev/hda1
-initrd  /boot/initramfs
-boot
 

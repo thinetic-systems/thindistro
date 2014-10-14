@@ -9,6 +9,7 @@ quiet=n
 
 # Setup the /etc/network/interfaces
 cat <<FEOF > ${rootmnt}/etc/rcS.d/S40networkdevs
+#!/bin/sh
 #
 # networkdevs	Setup the network. By default is going to be with dhcp
 #
@@ -21,13 +22,11 @@ TMPTIME=0
 . /lib/lsb/init-functions
 
 # load meta settings
-[ -f /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf ] && . /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf
+[ -f /.dirs/dev/system/settings.conf ] && . /.dirs/dev/system/settings.conf
 
 #
 # Setup the network
-#
-#log_begin_msg "Configuring network interfaces..."
-#log_begin_msg "Network setting..."
+
 
 devs=\$(ls /sys/class/net/ |grep -v "sit"|grep -v "lo")
 echo devs=\$devs >> /var/log/initramfs.debug

@@ -3,31 +3,46 @@
 
 # copy files to tmp dir and create ISO
 _echo "Generando iso"
-dir=/tmp/grub-iso$$
-mkdir -p ${dir}/boot/grub ${dir}/meta ${dir}/mods
+dir=/tmp/thindistro-iso$$
+mkdir -p ${dir}/isolinux ${dir}/system ${dir}/mods
 
-
+echo " * copiando módulos ..."
 cp -ra ${MODDIR}/* ${dir}/mods/
-cp -ra ${META_MASTER}/meta/* ${dir}/meta/
-cp -ra ${META_MASTER}/boot/grub/* ${dir}/boot/grub/
+cp -ra ${META_MASTER}/meta/* ${dir}/system/
 
-cp $BOOT/vmlinuz   ${dir}/boot/
-cp $BOOT/initramfs ${dir}/boot/
+cp $BOOT/vmlinuz   ${dir}/isolinux/
+cp $BOOT/initramfs ${dir}/isolinux/
 
 
- [ -f /lib/grub/i386-pc/stage2_eltorito ] && install -m 644 /lib/grub/i386-pc/stage2_eltorito ${dir}/boot/grub
- [ -f /usr/lib/grub/i386-pc/stage2_eltorito ] && install -m 644 /usr/lib/grub/i386-pc/stage2_eltorito ${dir}/boot/grub
+# [ -f /lib/grub/i386-pc/stage2_eltorito ] && install -m 644 /lib/grub/i386-pc/stage2_eltorito ${dir}/boot/grub
+# [ -f /usr/lib/grub/i386-pc/stage2_eltorito ] && install -m 644 /usr/lib/grub/i386-pc/stage2_eltorito ${dir}/boot/grub
+
+#( cd ${dir} && \
+#genisoimage -l -r -J -V "${TITLE}" -hide-rr-moved -v \
+# -b boot/grub/stage2_eltorito \
+# -no-emul-boot -boot-load-size 4 \
+# -boot-info-table -o  ${META_ISOS}/${IMAGE_NAME}.iso ${dir}/ )
+
+cp /usr/lib/syslinux/isolinux.bin ${dir}/isolinux/
+cat << EOF > ${dir}/isolinux/isolinux.cfg
+default thindistro
+prompt 1
+timeout 200
+
+label thindistro
+  kernel vmlinuz
+  append initrd=initramfs ramdisk_size=100000 root=/root boot=thindistro quiet splash mods=gnome,tcos
+EOF
 
 ( cd ${dir} && \
 genisoimage -l -r -J -V "${TITLE}" -hide-rr-moved -v \
- -b boot/grub/stage2_eltorito \
- -no-emul-boot -boot-load-size 4 \
- -boot-info-table -o  ${META_ISOS}/${IMAGE_NAME}.iso ${dir}/ )
+ -b isolinux/isolinux.bin -c boot.cat \
+ -no-emul-boot -boot-load-size 4 -boot-info-table -o  ${META_ISOS}/${IMAGE_NAME}.iso ${dir}/ )
 
 if [ $? = 0 ]; then
-    echo "Iso image done succesfully: ${OUTPUTIMAGE}"
+    echo "Iso image done succesfully: ${META_ISOS}/${IMAGE_NAME}.iso"
 else
-    echo "Error running mkisofs."
+    echo "Error running genisoimage."
 fi
 rm -rf ${dir} > /dev/null 2>&1
 

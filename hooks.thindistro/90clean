@@ -22,6 +22,9 @@ _desmontar() {
  rm -f /tmp/_desmontar
 }
 
+if [ $(grep -c "$WORKDIR/mntmods" /etc/mtab) != 0 ]; then
+ _desmontar "$WORKDIR/mntmods"
+fi
 
 if [ $(grep -c $MODRO /etc/mtab) != 0 ]; then
  _desmontar "$MODRO"
@@ -41,7 +44,9 @@ if [ $(grep -c $CHROOT/dev /etc/mtab) != 0 ]; then
   _desmontar "$CHROOT/dev"
 fi
 
-
+for l in $(mount | grep "$WORKDIR" | awk '{print $3}'); do
+  umount $l 2>/dev/null
+done
 
 umount -l $MODRO 2>/dev/null
 

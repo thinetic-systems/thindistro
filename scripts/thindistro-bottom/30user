@@ -9,6 +9,7 @@ quiet=n
 
 
 cat <<EOF > ${rootmnt}/etc/rc2.d/S10adduser.sh
+#!/bin/sh
 #
 # adduser.sh	Add a new user for the live session.
 #
@@ -28,7 +29,7 @@ TMPTIME=0
 #
 
 # load meta settings
-[ -f /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf ] && . /.dirs/dev/[Mm][Ee][Tt][Aa]/settings.conf
+[ -f /.dirs/dev/system/settings.conf ] && . /.dirs/dev/system/settings.conf
 USERNAME=\${conf_username}
 
 # Avoid empty liveuser
@@ -37,7 +38,7 @@ if [  "\$USERNAME" = "" ] ; then
 fi
 
 
-log_begin_msg "Adding user \"\$USERNAME\"..."
+#log_begin_msg "Adding user \"\$USERNAME\"..."
 
 # Comment for testing better
 #for question in username user-fullname user-password user-password-again; do
@@ -86,13 +87,9 @@ if [ -f /etc/sudoers ]; then
     fi 
 fi
 
-# Lock the user's password
-# FIXME don't lock password
-# passwd -l \$USERNAME
 
 
-
-log_end_msg 0
+#log_end_msg 0
 
 exit 0
 EOF

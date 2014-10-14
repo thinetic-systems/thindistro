@@ -1,0 +1,48 @@
+#!/bin/sh
+# 
+
+
+quiet=n
+
+. /conf/initramfs.conf
+
+
+
+cat <<EOF > ${rootmnt}/etc/rc2.d/S02modoverrides.sh
+#!/bin/sh
+#
+# mergeusers.sh Merge users in every mod.
+#
+#
+
+VERBOSE=yes
+TMPTIME=0
+[ -f /etc/default/rcS ] && . /etc/default/rcS
+. /lib/lsb/init-functions
+
+[ ! -d /.dirs/mods/system ] && exit 0
+[ ! -d /.dirs/image/var/lib/thindistro/changes ] && exit 0
+
+log_begin_msg "Adding module file overrides..."
+
+    if [ ]; then
+    # copy IMAGE changes into /.dirs/changes
+        cp -ra /.dirs/image/var/lib/thindistro/changes/* /.dirs/changes/ >> /var/log/initramfs.debug 2>&1
+    fi
+
+#for f in \$(find /.dirs/mods/system -type f ); do
+#  dest=\$(echo "\$f"| sed -e 's|/.dirs/mods/overrides||g')
+#  mv \${dest} \${dest}.orig
+#  mkdir -p \$(basename \${dest})
+#  ln -s "\${f}" "\${dest}"
+#done
+
+log_end_msg 0
+
+exit 0
+EOF
+
+
+chmod +x ${rootmnt}/etc/rc2.d/S02modoverrides.sh
+
+exit 0

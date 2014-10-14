@@ -7,7 +7,7 @@ Standards-Version: 3.8.1
 
 Package: thindistro
 Architecture: all
-Depends: initramfs-tools (>= 0.40), genisoimage, squashfs-tools, debootstrap, syslinux, mbr
+Depends: initramfs-tools (>= 0.40), genisoimage, squashfs-tools, debootstrap, syslinux, mbr, console-setup
 Description: tools for generating an livecd initramfs
  This package contains tools to create and boot an initramfs for prepackaged
  2.6 Linux kernel. The initramfs is an cpio archive. At boot time, the kernel

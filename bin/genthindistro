@@ -2,23 +2,23 @@
 
 [ -e /etc/thindistro/thindistro.conf ] && . /etc/thindistro/thindistro.conf
 
-DISTRO=lenny
+DISTRO=sid
 DISTRO_VERSION="5.0"
 VOLUMENAME="ThinDistro"
 ARCH=i386
 
-NAME="ThinBlue"
-VERSION="0.3.1"
+NAME="ThinDistro"
+VERSION="0.0.1"
 
 IMAGE_NAME="$NAME-$VERSION"
 TITLE="$NAME $VERSION"
-META_KERNEL="2.6.29-1-vortex86dx"
+META_KERNEL="2.6.32-trunk-686"
 
 stamp=$(date '+%Y%m%d_%H%M')
 created=$(date '+%Y%m%d')
 
 if [ "$MIRROR" = "" ]; then
-  MIRROR=192.168.0.3
+  MIRROR=ftp.fi.debian.org
 fi
 
 if [ "$LOCAL_MIRROR" = "" ]; then
@@ -41,10 +41,11 @@ mkdir -p $WORKDIR/mods
 
 _help() {
 cat << EOF
-  Help off genthindistro:
+  Help of genthindistro:
 
     LOCAL_MIRROR=1 
-    MIRROR=$MIRROR IP or hostname off mirror
+    MIRROR=$MIRROR IP or hostname of mirror
+    MODULES="mod1 mod2 mod3"
 
 EOF
 }
@@ -64,6 +65,8 @@ _exit() {
   _echo "killing $MY_NAME"
   killall $MY_NAME
 }
+
+
 
 _revert_invoke() {
  if [ "$1" != "" ]; then
@@ -116,18 +119,62 @@ EOF
 }
 
 
+
 create_module() {
-    mkdir -p $MODTMP $MODRO $MODRW
+    mkdir -p $MODTMP $MODRO $MODRW $MODDIR
     _echo "Building module $1"
+    echo "mount -o loop -t squashfs $BASEMOD $MODRO"
     mount -o loop -t squashfs $BASEMOD $MODRO || _exit "BASE module not found or error while mounting"
+
+
+
+    # mount base
+    echo "mount -t aufs -o br:${MODTMP}:${MODRO} none ${MODRW}"
     mount -t aufs -o br:${MODTMP}:${MODRO} none ${MODRW} || _exit "Can't create RW dir from BASE module"
-    #mount -t unionfs -o dirs=$MODTMP/=rw:$MODRO/=ro unionfs $MODRW || _exit "Can't create RW dir from BASE module"
+    #
+#    echo "mount -t aufs -o br:${changes}:${image} none ${unionfs}" >> /tmp/initramfs.debug 2>&1
+#    mount -t aufs -o br:${changes}:${image} none ${unionfs}
+#
+#    if [ -d /mnt/mods ]; then
+#        ALLMODS=$(ls -1 /mnt/mods | sort -n)
+#        for m in $ALLMODS; do
+#            moddir=/mnt/mods/$m/
+#            echo "mount -t aufs -o remount,append:${moddir} none ${unionfs}" >> /tmp/initramfs.debug 2>&1
+#            mount -t aufs -o remount,append:${moddir} none ${unionfs}
+#        done
+#    fi
+
+    if [ -d $MODDIR ]; then
+        ALLMODS=$(ls -1 $MODDIR/*squashfs | sort -n)
+        for m in $ALLMODS; do
+            moddir="$WORKDIR/mntmods/"$(basename $m .squashfs | awk -F"_" '{print $1"_"$2}')
+            if [ "$moddir" = "$WORKDIR/mntmods/00_base" ]; then
+                continue
+            fi
+            mkdir -p $moddir
+            # mount squashfs
+            echo "mount -o loop -t squashfs $m $moddir"
+            mount -o loop -t squashfs $m $moddir || _exit "$m module not found or error while mounting"
+            
+            # append
+            echo "mount -t aufs -o remount,append:${moddir} none ${MODRW}"
+            mount -t aufs -o remount,append:${moddir} none ${MODRW}
+        done
+        
+        
+        # overwrite dpkg status
+        STATUS=$(ls -1 $WORKDIR/mntmods/*/var/lib/dpkg/status 2>/dev/null| tail -1)
+        if [ "$STATUS" != "" ]; then
+            cp $STATUS $MODRW/var/lib/dpkg/status
+        fi
+    fi
 
     mount --bind /proc $MODRW/proc
     mount --bind /sys  $MODRW/sys
     mount --bind /dev  $MODRW/dev
 
     _add_invoke $MODRW
+
 
     chroot $MODRW << EOC || _exit "Error installing module $1"
 export LC_ALL=C
@@ -167,8 +214,8 @@ EOC
 root/
 boot/
 tmp/
-lib/modules/*
-var/cache/apt*
+#lib/modules/*
+#var/cache/apt*
 usr/sbin/invoke-rc.d
 sbin/start-stop-daemon
 EOF
@@ -176,6 +223,10 @@ EOF
     mksquashfs $MODTMP/  $MODDIR/$1_$VERSION.squashfs $LZMA -noappend \
                -ef $MODDIR/exclude_files || _exit "Can't make squashfs file"
     chmod 644 $MODDIR/$1_$VERSION.squashfs
+
+    if [ "$1" = "40_tcos" ]; then
+        chroot $MODRW /bin/bash
+    fi
 
     rm -f $MODDIR/exclude_files
 
@@ -191,8 +242,14 @@ EOF
 
     umount $MODRW
     umount $MODRO
+    
+    # umount $WORKDIR/mntmods
+    for d in $(find $WORKDIR/mntmods -maxdepth 1 -mindepth 1 -type d); do
+      umount $d
+      rmdir $d
+    done
 
-    rm -rf $MODTMP $MODRW $MODRO
+    rm -rf $MODTMP $MODRW $MODRO $WORKDIR/mntmods
 }
 
 

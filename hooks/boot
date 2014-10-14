@@ -25,9 +25,9 @@ esac
 
 if [ "${BOOT}" = "thindistro" ]; then
 
-  mkdir -p $DESTDIR/etc/console
-  cp /etc/console/boottime.kmap.gz $DESTDIR/etc/console/boottime.kmap.gz
-  copy_exec /bin/loadkeys /bin
+  #mkdir -p $DESTDIR/etc/console
+  #cp /etc/console/boottime.kmap.gz $DESTDIR/etc/console/boottime.kmap.gz
+  #copy_exec /bin/loadkeys /bin
 
   echo " * Overwriting run_scripts() function"
 
